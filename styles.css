@@ -1,0 +1,52 @@
+/* Custom Styles for Resume */
+
+/* Theme Color Variables */
+:root {
+  /* Primary Colors - Forest Greens */
+  --color-primary-dark: #2f5233;
+  --color-primary: #52796f;
+  --color-primary-light: #84a98c;
+  --color-primary-pale: #cad2c5;
+
+  /* Background Colors */
+  --color-bg-main: #f9fafb;
+  --color-bg-secondary: #f4f3ee;
+  --color-bg-card: #ffffff;
+
+  /* Text Colors */
+  --color-text-primary: #292524;
+  --color-text-secondary: #57534e;
+  --color-text-muted: #78716c;
+
+  /* Accent Colors */
+  --color-accent-gold: #f59e0b;
+  --color-accent-amber: #f59e0b;
+
+  /* Hero Gradient Colors */
+  --color-hero-start: rgba(5, 28, 10, 0.7);
+  --color-hero-mid: rgba(20, 55, 48, 0.6);
+  --color-hero-end: rgba(28, 25, 23, 0.7);
+}
+
+/* Hero Section Background */
+.hero-background {
+  background-image: url("https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80");
+}
+
+/* Header/Nav Pattern Background */
+.nav-pattern {
+  background: url(./assets/backgrounds/header-bg-pattern.png) left top repeat;
+}
+
+/* Footer Pattern Background */
+.footer-pattern {
+  background: url(./assets/backgrounds/header-bg-pattern.png) left top repeat;
+}
+
+/* Contact Form Background */
+.form-pattern {
+  background-image: url("https://images.unsplash.com/photo-1763612101817-a53a38f6186b?q=80&w=3735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}

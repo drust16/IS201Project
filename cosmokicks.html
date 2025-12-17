@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏈 Cosmo Cougar Kicks! 🏈</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- General Styling --- */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #B0E0E6; /* Light Blue page background */
+            font-family: 'Roboto', sans-serif; /* Standard font */
+            color: #333;
+        }
+
+        /* --- Title Styling --- */
+        h1 {
+            color: #002D56; /* BYU Navy */
+            font-family: 'Bebas Neue', sans-serif; /* Bold, sporty font */
+            font-size: 3.5em; 
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 0 #FFFFFF; /* White shadow */
+        }
+
+        /* --- Canvas Styling for the Game Area --- */
+        #gameCanvas {
+            border: 5px solid #002D56; /* Navy border */
+            background-color: #A0D7FF; /* Initial Sky Blue canvas background, will be dynamically changed */
+            box-shadow: 0 4px 15px rgba(0, 45, 86, 0.2);
+            touch-action: manipulation;
+        }
+
+        #score-display {
+            display: none; 
+        }
+
+        /* --- Instructions Styling --- */
+        #instructions {
+            margin-top: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #002D56; /* Navy text */
+            text-align: center;
+        }
+        
+        #instructions span {
+            color: #C8102E; /* Highlight key controls */
+        }
+
+        /* --- Start Button Styling --- */
+        #startButton {
+            padding: 15px 30px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: white;
+            background-color: #00428A; 
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            margin-top: 20px;
+        }
+
+        #startButton:hover {
+            background-color: #0056b3;
+        }
+
+        #startButton:active {
+            transform: translateY(1px);
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>🏈 COSMO COUGAR KICKS!</h1>
+    <div id="score-display">Score: 0</div>
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    <button id="startButton">Start Game</button>
+    <div id="instructions">
+        <span>Click / Tap</span> or press the <span>SPACE BAR</span> to make Cosmo jump!
+    </div>
+
+    <script>
+        // --- Game Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+
+        let gameLoop;
+        let isRunning = false;
+        let score = 0;
+        let gravity = 0.6;
+        let jumpForce = 13; 
+        
+        // --- Difficulty Variables ---
+        let initialPipeGap = 250; 
+        let normalPipeGap = 200;  
+        let pipeGap = initialPipeGap;
+        let pipeWidth = 30;
+        let pipeSpeed = 2.5; 
+        let pipeSpawnRate = 180;
+        let playerSpawnRate = 45; 
+        let frameCount = 0;
+        let gameTimeSeconds = 0; 
+        
+        // --- Dynamic Rivalry Variables ---
+        let UTAH_SCORE = 3; 
+        const UTAH_COMEBACK_SCORE = 7; 
+        
+        const FIELD_HEIGHT = 40;
+        const MIN_SKY_CLEARANCE = 80; 
+        const MIN_GROUND_CLEARANCE = 150; 
+
+        let hasWon = false; 
+        let ultimateWin = false; 
+        let utahIsCelebrating = false; 
+        let utahIsLosing = false; 
+
+        // --- Win Celebration Effect Array ---
+        let fireworks = [];
+        
+        // --- Fan Data Storage for Stable Props ---
+        const FAN_COUNT_ROW_1 = 20; 
+        let fanProps = []; 
+        let starPositions = []; // Array to store fixed star positions
+
+        // --- Color Constants ---
+        const BYU_NAVY = '#002D56';
+        const UTAH_RED = '#C8102E';
+        const COSMO_GOLD = '#FFCD00';
+        const BLACK = '#000000'; // New constant for black
+
+        // --- Day/Night Transition Variables ---
+        const NIGHT_TRIGGER_TIME = 10; // Time in seconds when the night mode is fully active
+        const TRANSITION_FRAMES = NIGHT_TRIGGER_TIME * 60; // 10 seconds * 60 frames/sec = 600 frames
+        let skyTransitionValue = 0; // Value from 0 (day) to 1 (night)
+        const START_SKY_COLOR = { r: 160, g: 215, b: 255 }; // #A0D7FF (Sky Blue)
+        const END_SKY_COLOR = { r: 10, g: 20, b: 50 };     // Deep Navy Night Sky
+        
+        // --- Initialization Function ---
+        function initializeFanData() {
+            fanProps = [];
+            const propChance = 0.5;
+            for (let i = 0; i < FAN_COUNT_ROW_1; i++) {
+                const isBYU = i % 2 === 0;
+                let propType = null;
+                
+                if (Math.random() < propChance) {
+                    if (isBYU) {
+                        propType = Math.random() < 0.5 ? 0 : 1; // 0=BYU Flag, 1=BYU Pom-Pom
+                    } else {
+                        propType = Math.random() < 0.5 ? 2 : 3; // 2=Utah Flag, 3=Utah Foam Finger
+                    }
+                }
+
+                fanProps.push({
+                    isBYU: isBYU,
+                    propType: propType
+                });
+            }
+            
+            // Initialize fixed star positions (only once)
+            starPositions = [];
+            for (let i = 0; i < 30; i++) {
+                starPositions.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * 150, // Keep stars in the upper sky
+                    size: Math.random() > 0.9 ? 2 : 1 // mix of 1x1 and 2x2 stars
+                });
+            }
+        }
+        
+        // Call initialization right away
+        initializeFanData();
+
+
+        // --- Drawing Helper Functions ---
+        
+        function drawFirework(fw) {
+            ctx.fillStyle = fw.color;
+            ctx.beginPath();
+            ctx.arc(fw.x, fw.y, fw.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function updateFireworks() {
+            if (!hasWon) return; 
+
+            const spawnRate = ultimateWin ? 5 : 10;
+            const particleCount = ultimateWin ? 20 : 10; 
+
+            fireworks.forEach((fw, index) => {
+                fw.x += fw.velocity.x;
+                fw.y += fw.velocity.y;
+                fw.velocity.y += 0.05; 
+                fw.radius *= 0.98; 
+                fw.alpha = Math.max(0, fw.alpha - 0.01); 
+
+                if (fw.radius < 0.5 || fw.alpha <= 0) {
+                    fireworks.splice(index, 1);
+                }
+
+                ctx.save();
+                ctx.globalAlpha = fw.alpha;
+                drawFirework(fw);
+                ctx.restore();
+            });
+
+            if (frameCount % spawnRate === 0) { 
+                const colors = [COSMO_GOLD, BYU_NAVY, '#FFFFFF', UTAH_RED];
+                const fwX = Math.random() * canvas.width;
+                const fwY = Math.random() * (canvas.height / 2); 
+                
+                for (let i = 0; i < particleCount; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 3 + 1;
+
+                    fireworks.push({
+                        x: fwX,
+                        y: fwY,
+                        radius: Math.random() * 2 + 1,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        velocity: {
+                            x: Math.cos(angle) * speed,
+                            y: Math.sin(angle) * speed
+                        },
+                        alpha: 1
+                    });
+                }
+            }
+        }
+
+        function lerpColor(c1, c2, t) {
+            const r = Math.round(c1.r + (c2.r - c1.r) * t);
+            const g = Math.round(c1.g + (c2.g - c1.g) * t);
+            const b = Math.round(c1.b + (c2.b - c1.b) * t);
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function drawSkyAndLights() {
+            // 1. Dynamic Sky Background
+            const skyColor = lerpColor(START_SKY_COLOR, END_SKY_COLOR, skyTransitionValue);
+            canvas.style.backgroundColor = skyColor;
+            
+            // 2. Sun/Moon and Stars
+            const SUN_RADIUS = 30;
+            const MOON_RADIUS = 15;
+            const celestialYStart = 50;
+            const celestialYEnd = 300; 
+            
+            // Sun's Y position: moves from top (YStart) to far below horizon (YEnd)
+            const sunY = celestialYStart + (celestialYEnd - celestialYStart) * skyTransitionValue;
+            
+            // --- Moon Animation Logic ---
+            const MOON_RISE_START = 0.8; 
+            const moonRiseProgress = Math.max(0, (skyTransitionValue - MOON_RISE_START) / (1 - MOON_RISE_START));
+            
+            const moonY = celestialYEnd - (celestialYEnd - celestialYStart) * moonRiseProgress;
+
+
+            // Draw Sun (Only visible during day/transition)
+            if (skyTransitionValue < 0.99) {
+                ctx.fillStyle = COSMO_GOLD;
+                ctx.beginPath();
+                ctx.arc(canvas.width - 50, sunY, SUN_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw Moon (Only visible during transition/night)
+            if (moonRiseProgress > 0) {
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(50, moonY, MOON_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+
+            // Draw Fixed Stars (Flicker slightly at night)
+            if (skyTransitionValue > 0.5) {
+                ctx.fillStyle = 'white';
+                const alpha = Math.min(1, (skyTransitionValue - 0.5) * 2); 
+                
+                starPositions.forEach(star => {
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    
+                    if (Math.random() > 0.95) {
+                         ctx.fillRect(star.x, star.y, star.size, star.size);
+                    } else {
+                         ctx.fillRect(star.x, star.y, star.size, star.size);
+                    }
+                    ctx.restore();
+                });
+            }
+
+            // 3. Stadium Lights Structure 
+            const lightPoleHeight = 150; 
+            const lightPoleBaseY = canvas.height - FIELD_HEIGHT - 90; 
+            const lightPoleX1 = 50;
+            const lightPoleX2 = canvas.width - 50;
+            const structureColor = '#555';
+
+            // Draw Poles
+            ctx.fillStyle = structureColor;
+            ctx.fillRect(lightPoleX1 - 2, lightPoleBaseY - lightPoleHeight, 4, lightPoleHeight);
+            ctx.fillRect(lightPoleX2 - 2, lightPoleBaseY - lightPoleHeight, 4, lightPoleHeight);
+
+            const lightHeadWidth = 35;
+            const lightHeadY = lightPoleBaseY - lightPoleHeight;
+
+            // Draw Light Heads (Structure)
+            ctx.fillStyle = '#333';
+            ctx.fillRect(lightPoleX1 - lightHeadWidth / 2, lightHeadY - 5, lightHeadWidth, 10);
+            ctx.fillRect(lightPoleX2 - lightHeadWidth / 2, lightHeadY - 5, lightHeadWidth, 10);
+
+            // Draw Lamps (Small white/silver rectangles)
+            const lampColor = '#CCC';
+            const lampSize = 4;
+            const lampCount = 5;
+
+            for(let i = 0; i < lampCount; i++) {
+                // Left Head
+                ctx.fillStyle = lampColor;
+                ctx.fillRect(lightPoleX1 - lightHeadWidth / 2 + 3 + i * 6, lightHeadY - 4, lampSize, 8);
+                
+                // Right Head
+                ctx.fillRect(lightPoleX2 - lightHeadWidth / 2 + 3 + i * 6, lightHeadY - 4, lampSize, 8);
+            }
+
+            // 4. Light Effect (Only if gameTimeSeconds >= 10)
+            if (gameTimeSeconds >= NIGHT_TRIGGER_TIME) {
+                const LIGHT_SOURCE_Y = lightHeadY;
+                const LIGHT_SPREAD_WIDTH = canvas.width * 1.5;
+                const LIGHT_SPREAD_Y = canvas.height - FIELD_HEIGHT;
+                
+                function drawLightBeam(centerX) {
+                    
+                    ctx.save();
+                    ctx.globalAlpha = 0.4;
+                    
+                    const beamColor = 'rgba(255, 255, 255, 1)';
+                    const shadowColor = 'rgba(255, 255, 255, 0)';
+
+                    const gradient = ctx.createRadialGradient(
+                        centerX, LIGHT_SOURCE_Y, 0, 
+                        centerX, LIGHT_SOURCE_Y, 200
+                    );
+                    gradient.addColorStop(0, beamColor);
+                    gradient.addColorStop(1, shadowColor);
+
+                    ctx.fillStyle = gradient;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, LIGHT_SOURCE_Y);
+                    ctx.lineTo(centerX - LIGHT_SPREAD_WIDTH / 2, LIGHT_SPREAD_Y);
+                    ctx.lineTo(centerX + LIGHT_SPREAD_WIDTH / 2, LIGHT_SPREAD_Y);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+
+                drawLightBeam(lightPoleX1);
+                drawLightBeam(lightPoleX2);
+            }
+        }
+
+
+        function drawScoreboard() { 
+            const sbWidth = 250;
+            const sbHeight = 50;
+            const sbX = (canvas.width / 2) - (sbWidth / 2);
+            const sbY = 10;
+            
+            ctx.fillStyle = BYU_NAVY; 
+            ctx.fillRect(sbX, sbY, sbWidth, sbHeight);
+            
+            ctx.fillStyle = 'black';
+            ctx.fillRect(sbX + 5, sbY + 5, 40, sbHeight - 10);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Roboto';
+            ctx.textAlign = 'center';
+            ctx.fillText(String(gameTimeSeconds).padStart(2, '0'), sbX + 25, sbY + 32);
+
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(sbX + 50, sbY);
+            ctx.lineTo(sbX + 50, sbY + sbHeight);
+            ctx.moveTo(sbX + 150, sbY);
+            ctx.lineTo(sbX + 150, sbY + sbHeight);
+            ctx.stroke();
+
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 18px Roboto';
+            ctx.textAlign = 'center';
+            ctx.fillText('BYU', sbX + 100, sbY + 18);
+            ctx.fillText('UTAH', sbX + 200, sbY + 18);
+
+            ctx.font = 'bold 24px Roboto';
+            // BYU Score Flash on Win
+            ctx.fillStyle = hasWon && frameCount % 10 < 5 ? 'white' : COSMO_GOLD; 
+            ctx.fillText(score, sbX + 100, sbY + 42);
+            
+            // Utah Score Flash on comeback fail
+            const utahScoreFlash = score === 4 && UTAH_SCORE === UTAH_COMEBACK_SCORE && frameCount % 10 < 5;
+            ctx.fillStyle = utahScoreFlash ? 'white' : UTAH_RED; 
+            ctx.fillText(UTAH_SCORE, sbX + 200, sbY + 42);
+        }
+
+        /**
+         * Draws a single fan based on the provided parameters.
+         */
+        function drawSingleFan(x, y, size, shirtColor, headColor) {
+            // Body
+            ctx.fillStyle = shirtColor;
+            ctx.fillRect(x - size / 2, y, size, size + 2); 
+            
+            // Head
+            ctx.fillStyle = headColor;
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2); 
+            ctx.fill();
+        }
+
+
+        /**
+         * Draws the crowd with depth and fan props, using stable fan data.
+         */
+        function drawStandsAndFans() {
+            const totalStandsHeight = 90;
+            const standsY = canvas.height - FIELD_HEIGHT - totalStandsHeight;
+
+            // Background Stand Structure (Grey)
+            ctx.fillStyle = '#999999';
+            ctx.fillRect(0, standsY, canvas.width, totalStandsHeight);
+            
+            // Subtle line for row separation
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, standsY + totalStandsHeight - 45);
+            ctx.lineTo(canvas.width, standsY + totalStandsHeight - 45);
+            ctx.stroke();
+
+
+            // --- Row 3 (Farthest Back Row - Smallest) ---
+            const backRowFanCount3 = 40; 
+            const backRowSpacing3 = canvas.width / backRowFanCount3;
+            const backRowY3 = standsY + totalStandsHeight - 55;
+            const fanSize3 = 6;
+            const waveSpeedBack3 = 0.03; 
+            
+            for (let i = 0; i < backRowFanCount3; i++) {
+                const fanX = i * backRowSpacing3 + (backRowSpacing3 / 2); 
+                const verticalOffset = Math.sin(frameCount * waveSpeedBack3 + i * 0.3) * 2; 
+                const fanY = backRowY3 + verticalOffset;
+                const shirtColor = i % 2 === 0 ? BYU_NAVY : UTAH_RED; 
+                
+                drawSingleFan(fanX, fanY, fanSize3, shirtColor, COSMO_GOLD);
+            }
+
+            // --- Row 2 (Middle Row - Medium Size) ---
+            const backRowFanCount2 = 30; 
+            const backRowSpacing2 = canvas.width / backRowFanCount2;
+            const backRowY2 = standsY + totalStandsHeight - 40;
+            const fanSize2 = 8;
+            const waveSpeedBack2 = 0.06; 
+            
+            for (let i = 0; i < backRowFanCount2; i++) {
+                const fanX = i * backRowSpacing2 + (backRowSpacing2 / 2); 
+                const verticalOffset = Math.sin(frameCount * waveSpeedBack2 + i * 0.5) * 3; 
+                const fanY = backRowY2 + verticalOffset;
+                const shirtColor = i % 2 === 0 ? BYU_NAVY : UTAH_RED; 
+                
+                drawSingleFan(fanX, fanY, fanSize2, shirtColor, COSMO_GOLD);
+            }
+
+            // --- Row 1 (Front Row - Largest, Detailed Props) ---
+            const fanCount = FAN_COUNT_ROW_1; 
+            const fanSpacing = canvas.width / fanCount;
+            const frontRowY = standsY + totalStandsHeight - 18;
+            const fanSize = 10;
+            const waveSpeedFront = 0.1;
+
+            for (let i = 0; i < fanCount; i++) {
+                const fanX = i * fanSpacing + (fanSpacing / 2);
+                const verticalOffset = Math.sin(frameCount * waveSpeedFront + i) * 5; 
+                const fanY = frontRowY + verticalOffset;
+                
+                const data = fanProps[i];
+                const shirtColor = data.isBYU ? BYU_NAVY : UTAH_RED; 
+                
+                ctx.save();
+                ctx.translate(fanX, fanY); // Translate to the fan's center
+
+                drawSingleFan(0, 0, fanSize, shirtColor, COSMO_GOLD); // Draw fan at translated origin
+
+                // --- Fan Props (Uses stable data) ---
+                if (data.propType !== null) {
+                    const flagPoleX = fanSize / 2;
+                    const flagY = -20;
+                    
+                    // Wave calculation is only for the prop itself
+                    const propWave = Math.sin(frameCount * 0.3 + i * 0.5) * 2; 
+
+                    if (data.propType === 0) { // BYU Flag (Navy Flag with White Y)
+                        const flagLength = 15;
+                        const flagHeight = 8;
+                        
+                        // Pole
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(flagPoleX, 0, 1, flagY);
+                        
+                        // Flag (Waving motion)
+                        ctx.fillStyle = BYU_NAVY;
+                        ctx.beginPath();
+                        ctx.moveTo(flagPoleX + 1, flagY);
+                        ctx.lineTo(flagPoleX + 1 + flagLength, flagY + propWave); 
+                        ctx.lineTo(flagPoleX + 1 + flagLength, flagY + flagHeight + propWave);
+                        ctx.lineTo(flagPoleX + 1, flagY + flagHeight);
+                        ctx.closePath();
+                        ctx.fill();
+                        
+                        // 'Y' Logo (White)
+                        ctx.fillStyle = 'white'; 
+                        ctx.font = 'bold 8px Roboto';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Y', flagPoleX + 1 + flagLength / 2, flagY + flagHeight / 2 + 3);
+
+                    } else if (data.propType === 1) { // BYU Pom-Pom (Gold/White)
+                        const pomX = flagPoleX + 5;
+                        const pomY = -10;
+                        
+                        for (let j = 0; j < 8; j++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const distance = Math.random() * 4 + propWave * 0.5; // Subtle prop wave addition
+                            ctx.fillStyle = j % 2 === 0 ? COSMO_GOLD : 'white';
+                            ctx.beginPath();
+                            ctx.arc(pomX + Math.cos(angle) * distance, pomY + Math.sin(angle) * distance, 1.5, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    } else if (data.propType === 2) { // Utah Flag (Red Flag with White U)
+                         const flagLength = 15;
+                        const flagHeight = 8;
+                        
+                        // Pole
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(flagPoleX, 0, 1, flagY);
+                        
+                        // Flag (Waving motion)
+                        ctx.fillStyle = UTAH_RED;
+                        ctx.beginPath();
+                        ctx.moveTo(flagPoleX + 1, flagY);
+                        ctx.lineTo(flagPoleX + 1 + flagLength, flagY + propWave); 
+                        ctx.lineTo(flagPoleX + 1 + flagLength, flagY + flagHeight + propWave);
+                        ctx.lineTo(flagPoleX + 1, flagY + flagHeight);
+                        ctx.closePath();
+                        ctx.fill();
+                        
+                        // 'U' Logo
+                        ctx.fillStyle = 'white'; 
+                        ctx.font = 'bold 8px Roboto';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('U', flagPoleX + 1 + flagLength / 2, flagY + flagHeight / 2 + 3);
+                    } else if (data.propType === 3) { // Utah Foam Finger (White #1)
+                        const fingerX = flagPoleX + 5;
+                        const fingerY = -10;
+                        const fingerWidth = 6;
+                        const fingerHeight = 15;
+                        
+                        // Hand Base (Handle)
+                        ctx.fillStyle = UTAH_RED;
+                        ctx.fillRect(fingerX - fingerWidth / 2, fingerY, fingerWidth, 5);
+
+                        // Foam Finger (Bulbous top)
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath();
+                        ctx.arc(fingerX, fingerY - 7 + propWave, fingerWidth, Math.PI, 0, true); 
+                        ctx.lineTo(fingerX + fingerWidth / 2, fingerY);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // '1' on the finger
+                        ctx.fillStyle = UTAH_RED;
+                        ctx.font = 'bold 8px Roboto';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('1', fingerX, fingerY - 8 + propWave);
+                    }
+                }
+
+                ctx.restore(); // Restore translation
+            }
+        }
+        
+        function drawFootballField() {
+            const fieldY = canvas.height - FIELD_HEIGHT;
+            const fieldColor = '#1D7040';
+            ctx.fillStyle = fieldColor;
+            ctx.fillRect(0, fieldY, canvas.width, FIELD_HEIGHT);
+
+            const markerColor = 'white';
+            const markerWidth = 2;
+            const markerSpacing = 50;
+            const numberSequence = [10, 20, 30, 40, 50, 40, 30, 20];
+            const totalSequenceDistance = numberSequence.length * markerSpacing;
+
+            ctx.fillStyle = markerColor;
+            ctx.font = 'bold 12px Roboto';
+            ctx.textAlign = 'center';
+            
+            // Only draw yard markers if players aren't celebrating/losing
+            if (!utahIsCelebrating && !utahIsLosing) {
+                for (let i = -canvas.width / markerSpacing; i < canvas.width / markerSpacing + numberSequence.length + 1; i++) {
+                    const numberIndex = (i % numberSequence.length + numberSequence.length) % numberSequence.length;
+                    let drawX = (i * markerSpacing) + canvas.width - (frameCount * pipeSpeed) % totalSequenceDistance;
+                    
+                    if (drawX > -markerSpacing && drawX < canvas.width + markerSpacing) {
+                        ctx.fillRect(drawX, fieldY, markerWidth, FIELD_HEIGHT);
+                        const yardNumber = numberSequence[numberIndex];
+                        ctx.fillText(yardNumber, drawX + markerWidth / 2, fieldY + 18);
+                    }
+                }
+            }
+        }
+        
+        function drawOval(x, y, width, height, color, rotation = 0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.translate(x + width / 2, y + height / 2);
+            ctx.rotate(rotation);
+            ctx.scale(1, height / width);
+            ctx.arc(0, 0, width / 2, 0, Math.PI * 2);
+            ctx.restore();
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        // --- Cosmo Object ---
+        const cosmo = {
+            x: 50,
+            y: canvas.height / 2,
+            radius: 20,
+            color: COSMO_GOLD,
+            navy: BYU_NAVY,
+            velocity: 0,
+            isCelebrating: false,
+            
+            draw() {
+                ctx.save();
+                
+                let currentRadius = this.radius;
+                let rotationAngle = 0;
+
+                if (this.isCelebrating || hasWon) {
+                    currentRadius = this.radius * 1.2;
+                    rotationAngle = (frameCount * (ultimateWin ? 0.2 : 0.1)); 
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(rotationAngle);
+                    ctx.translate(-this.x, -this.y);
+                }
+
+                const fbWidth = 25;
+                const fbHeight = 15;
+                const fbX = this.x + currentRadius - 5;
+                const fbY = this.y - 10;
+                
+                drawOval(fbX, fbY, fbWidth, fbHeight, '#8B4513', Math.PI / 8); 
+
+                ctx.save();
+                ctx.translate(fbX + fbWidth / 2, fbY + fbHeight / 2);
+                ctx.rotate(Math.PI / 8);
+                ctx.strokeStyle = 'white'; 
+                ctx.lineWidth = 1.5;
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -fbHeight / 4);
+                ctx.lineTo(0, fbHeight / 4);
+                ctx.stroke();
+
+                const dashLength = 3;
+                for (let i = -1; i <= 1; i += 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(-dashLength / 2, i * fbHeight / 8);
+                    ctx.lineTo(dashLength / 2, i * fbHeight / 8);
+                    ctx.stroke();
+                }
+
+                ctx.restore(); 
+
+
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                const earSize = 10;
+                ctx.beginPath();
+                ctx.moveTo(this.x - currentRadius, this.y - currentRadius);
+                ctx.lineTo(this.x - currentRadius - earSize, this.y - currentRadius - earSize);
+                ctx.lineTo(this.x - currentRadius + earSize, this.y - currentRadius - earSize / 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(this.x + currentRadius, this.y - currentRadius);
+                ctx.lineTo(this.x + currentRadius + earSize, this.y - currentRadius - earSize);
+                ctx.lineTo(this.x + currentRadius - earSize, this.y - currentRadius - earSize / 2);
+                ctx.fill();
+
+
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + 5, currentRadius / 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                const eyeRadius = currentRadius / 5;
+                ctx.fillStyle = this.navy;
+                ctx.beginPath();
+                ctx.arc(this.x - 7, this.y - 5, eyeRadius, 0, Math.PI * 2);
+                ctx.arc(this.x + 7, this.y - 5, eyeRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = 'white'; 
+                ctx.font = '12px Roboto';
+                ctx.textAlign = 'center';
+                ctx.fillText('Y', this.x, this.y + 10);
+
+                ctx.restore(); 
+            },
+            update() {
+                this.velocity += gravity;
+                this.y += this.velocity;
+            },
+            jump() {
+                this.velocity = -jumpForce;
+            }
+        };
+        
+        // --- Opposing Player Object (UPDATED STYLING) ---
+        class OpposingPlayer {
+            constructor(x, fieldY) {
+                this.x = x;
+                this.fieldY = fieldY;
+                this.width = 25; 
+                this.height = 50; 
+                this.red = UTAH_RED; 
+                this.collisionRadius = 15; 
+                this.jerseyNumber = Math.floor(Math.random() * 99) + 1; 
+                this.baseY = fieldY - this.height;
+                this.celebrationOffset = 0; 
+                this.celebrationFrame = 0;
+            }
+
+            draw() {
+                let playerY = this.baseY;
+                let armMovement = Math.sin(frameCount * 0.2) * 3;
+                let bodyTilt = 0; // For collapse
+
+                if (utahIsLosing) {
+                    // Collapse animation
+                    this.celebrationFrame++;
+                    // Only apply tilt in the first few frames for a smooth collapse
+                    bodyTilt = Math.min(Math.PI / 2, this.celebrationFrame * 0.05); 
+                    playerY = this.baseY + 20; 
+                    armMovement = -15; // Arms down and out
+                } else if (utahIsCelebrating) {
+                    // Celebration jump/bounce (for losses)
+                    this.celebrationFrame++;
+                    this.celebrationOffset = Math.sin(this.celebrationFrame * 0.2) * 20; // Bigger jump
+                    playerY -= this.celebrationOffset;
+                    armMovement = 10; // Arms permanently raised for joy
+                }
+                
+                const centerX = this.x + this.width / 2;
+                const helmetRadius = 15;
+                const torsoHeight = 25;
+                const torsoWidth = 20;
+
+
+                ctx.save();
+                ctx.translate(centerX, playerY);
+
+                // Apply collapse rotation
+                if (utahIsLosing) {
+                    ctx.rotate(bodyTilt);
+                }
+                
+                // 4. Torso (Red)
+                ctx.fillStyle = this.red;
+                ctx.fillRect(-torsoWidth / 2, helmetRadius, torsoWidth, torsoHeight);
+
+                // 5. Jersey Number (White)
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 12px Roboto'; 
+                ctx.textAlign = 'center';
+                ctx.fillText(this.jerseyNumber, 0, helmetRadius + 18);
+
+                // 6. Legs (Black Pants)
+                const legHeight = 15;
+                const legWidth = 8;
+                const legY = helmetRadius + torsoHeight;
+                ctx.fillStyle = BLACK; 
+                ctx.fillRect(-torsoWidth / 2, legY, legWidth, legHeight);
+                ctx.fillRect(torsoWidth / 2 - legWidth, legY, legWidth, legHeight);
+
+                // 7. Cleats (Black)
+                const cleatHeight = 3;
+                ctx.fillStyle = BLACK; 
+                ctx.fillRect(-torsoWidth / 2, legY + legHeight, legWidth, cleatHeight);
+                ctx.fillRect(torsoWidth / 2 - legWidth, legY + legHeight, legWidth, cleatHeight);
+
+                // 8. Arms (White trim)
+                const armWidth = 5;
+                const armLength = 18;
+                ctx.fillStyle = 'white'; 
+
+                // Left Arm 
+                ctx.fillRect(-torsoWidth / 2 - armWidth, helmetRadius + 5 - armMovement, armWidth, armLength);
+                
+                // Right Arm 
+                ctx.fillRect(torsoWidth / 2, helmetRadius + 5 - armMovement, armWidth, armLength);
+
+
+                // --- Helmet Drawing (Must be drawn last for layering) ---
+                
+                // 1. Helmet (Red base)
+                ctx.fillStyle = this.red;
+                ctx.beginPath();
+                ctx.arc(0, 0, helmetRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Red helmet chinstrap connection point
+                ctx.fillStyle = this.red;
+                ctx.fillRect(-helmetRadius, 5, 2 * helmetRadius, 3);
+                
+                // 2. Helmet Decal (White U - Refined for size/placement)
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 14px Roboto'; 
+                ctx.textAlign = 'center';
+                ctx.fillText('U', 0, 5); 
+                
+                // 3. Facemask (Black - More realistic design)
+                ctx.fillStyle = BLACK; 
+                const maskBarWidth = 2;
+                const maskBarLength = 18;
+                const maskOffset = 3;
+
+                // Horizontal bars (Thicker middle bar for contrast)
+                ctx.fillRect(-maskBarLength / 2, maskOffset, maskBarLength, maskBarWidth); // Top bar
+                ctx.fillRect(-maskBarLength / 2, maskOffset + 4, maskBarLength, maskBarWidth + 1); // Middle bar (slightly thicker)
+                ctx.fillRect(-maskBarLength / 2, maskOffset + 9, maskBarLength, maskBarWidth); // Bottom bar
+                
+                // Vertical bars 
+                ctx.fillRect(-maskBarLength / 2, maskOffset, maskBarWidth, 9 + maskBarWidth); 
+                ctx.fillRect(maskBarLength / 2 - maskBarWidth, maskOffset, maskBarWidth, 9 + maskBarWidth); 
+
+
+                ctx.restore(); // Restore translation/rotation
+            }
+
+            update() {
+                // Players always move unless the game has been truly halted by a real loss
+                if (!utahIsCelebrating) { 
+                     this.x -= pipeSpeed;
+                }
+            }
+            
+            getCollisionCenter() {
+                // Use base Y for collision, adjusted for movement/celebration
+                return {
+                    x: this.x + this.width / 2,
+                    y: this.fieldY - this.height / 2 - this.celebrationOffset 
+                };
+            }
+
+            celebrate() {
+                this.celebrationFrame = 0; 
+                this.celebrationOffset = 0;
+            }
+        }
+        let opposingPlayers = [];
+
+
+        // --- Field Goal Post ---
+        class FieldGoalPost {
+            constructor() {
+                this.x = canvas.width;
+                this.width = pipeWidth; 
+                
+                const groundLimit = canvas.height - MIN_GROUND_CLEARANCE; 
+                const minCenterY = groundLimit - (pipeGap / 2); 
+                const minGapY = Math.max(MIN_SKY_CLEARANCE + (pipeGap / 2), 150); 
+                const maxGapY = minCenterY; 
+
+                if (minGapY > maxGapY) {
+                    this.gapY = canvas.height / 2;
+                } else {
+                    this.gapY = Math.random() * (maxGapY - minGapY) + minGapY; 
+                }
+                
+                this.gapSize = pipeGap; 
+                this.color = COSMO_GOLD; 
+                this.baseColor = BYU_NAVY; 
+                this.scored = false;
+            }
+
+            // Helper function to draw the waving flag
+            drawFlag(flagY) {
+                const flagX = this.x + this.width;
+                const flagHeight = 10;
+                const flagLength = 25;
+                const flagColor = 'orange';
+                const wave = Math.sin(frameCount * 0.2 + this.x / 10) * 3; 
+
+                ctx.fillStyle = flagColor;
+                ctx.beginPath();
+                ctx.moveTo(flagX, flagY); 
+                
+                ctx.lineTo(flagX + flagLength, flagY + wave);
+                ctx.lineTo(flagX + flagLength, flagY + flagHeight + wave);
+                ctx.lineTo(flagX, flagY + flagHeight);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Flagpole
+                ctx.fillStyle = 'gray';
+                ctx.fillRect(this.x + this.width, flagY, 2, flagHeight);
+            }
+
+            draw() {
+                // Goal Posts (Yellow)
+                ctx.fillStyle = this.color;
+                const topUprightHeight = this.gapY - this.gapSize / 2;
+                ctx.fillRect(this.x, 0, this.width, topUprightHeight);
+                const bottomUprightY = this.gapY + this.gapSize / 2;
+                const bottomUprightHeight = canvas.height - bottomUprightY;
+                ctx.fillRect(this.x, bottomUprightY, this.width, bottomUprightHeight);
+                const crossbarHeight = 10;
+                const crossbarY = topUprightHeight - crossbarHeight;
+                ctx.fillRect(this.x, crossbarY, this.width, crossbarHeight);
+                
+                // Base (Navy)
+                ctx.fillStyle = this.baseColor;
+                const baseHeight = 50;
+                ctx.fillRect(this.x, canvas.height - baseHeight, this.width, baseHeight);
+
+                // --- Draw Flags ---
+                this.drawFlag(crossbarY);
+                this.drawFlag(bottomUprightY);
+            }
+
+            update() {
+                this.x -= pipeSpeed;
+            }
+        }
+
+        let fieldGoalPosts = [];
+
+        // --- Game Logic Functions ---
+
+        function triggerCelebration() {
+            cosmo.isCelebrating = true;
+            // Short celebration time for Cosmo
+            setTimeout(() => { cosmo.isCelebrating = false; }, 1000 / 60 * 20); 
+
+            // Difficulty check: Reduce gap after score 2 (now the gap will shrink from 250 to 200)
+            if (score === 2 && pipeGap > normalPipeGap) {
+                pipeGap = normalPipeGap;
+            }
+            
+            // Initial Rivalry Win (Score 5 to 7)
+            if (score === 4 && UTAH_SCORE === 3) {
+                hasWon = true; 
+                ultimateWin = false;
+                
+                setTimeout(() => {
+                    // This logic is mostly for resetting the score flash
+                    if (score < UTAH_COMEBACK_SCORE) {
+                         hasWon = false; 
+                    }
+                }, 2000); 
+
+                UTAH_SCORE = UTAH_COMEBACK_SCORE; // Utah score increases to 7 
+                return; 
+            }
+            
+            // Check for Ultimate Win (Score >= 8)
+            if (score >= 8) {
+                hasWon = true; 
+                ultimateWin = true; 
+                
+                // Trigger permanent Utah Losing Animation
+                utahIsLosing = true;
+                opposingPlayers.forEach(player => player.celebrate()); 
+
+                // *** CRITICAL CHANGE: DO NOT CALL gameOver() HERE ***
+                return;
+            }
+            
+            hasWon = false;
+            ultimateWin = false;
+        }
+
+        function spawnOpposingPlayer() {
+            const minX = canvas.width + 50; 
+            const maxX = canvas.width + 300; 
+            const spawnX = Math.random() * (maxX - minX) + minX;
+            
+            const newPlayer = new OpposingPlayer(spawnX, canvas.height - FIELD_HEIGHT);
+            
+            // If we are in the ultimate win state, the new player is immediately losing.
+            if (utahIsLosing) {
+                newPlayer.celebrate(); // Initialize player frame for collapse
+            }
+            
+            opposingPlayers.push(newPlayer);
+        }
+
+        function checkCollision() {
+            // Out of Bounds collision
+            if (cosmo.y + cosmo.radius > canvas.height - FIELD_HEIGHT || cosmo.y - cosmo.radius < 0) { return true; }
+            
+            // Field Goal collision
+            for (const post of fieldGoalPosts) {
+                if (cosmo.x + cosmo.radius > post.x && cosmo.x - cosmo.radius < post.x + post.width) {
+                    const topPostBottom = post.gapY - post.gapSize / 2;
+                    const bottomPostTop = post.gapY + post.gapSize / 2;
+                    if (cosmo.y - cosmo.radius < topPostBottom || cosmo.y + cosmo.radius > bottomPostTop) { return true; }
+                }
+            }
+            
+            // Player collision
+            for (const player of opposingPlayers) {
+                const center = player.getCollisionCenter();
+                const dx = cosmo.x - center.x;
+                const dy = cosmo.y - center.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < cosmo.radius + player.collisionRadius) { return true; }
+            }
+            return false;
+        }
+
+        function updateScore() {
+            for (const post of fieldGoalPosts) {
+                if (post.x + post.width < cosmo.x - cosmo.radius && !post.scored) {
+                    score++;
+                    post.scored = true;
+                    triggerCelebration();
+                }
+            }
+        }
+
+        function gameTick() {
+            if (!isRunning) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // --- Update Day/Night Transition (Smoother using frameCount) ---
+            skyTransitionValue = Math.min(1, frameCount / TRANSITION_FRAMES);
+            
+            drawSkyAndLights(); 
+            updateFireworks();
+            drawStandsAndFans();
+            drawFootballField();
+            
+            // --- Movement and Spawning: ALWAYS RUNNING IF isRunning is true ---
+            
+            // 1. Update/Remove Offscreen Players
+            opposingPlayers.forEach((player, index) => {
+                player.update();
+                if (player.x + player.width < 0) { opposingPlayers.splice(index, 1); }
+            });
+            
+            // 2. Update/Remove Offscreen Goals
+            fieldGoalPosts.forEach((post, index) => {
+                post.update();
+                if (post.x + post.width < 0) { fieldGoalPosts.splice(index, 1); }
+            });
+            
+            // 3. Spawning
+            if (frameCount % pipeSpawnRate === 0) { fieldGoalPosts.push(new FieldGoalPost()); }
+            if (frameCount % playerSpawnRate === 0) { spawnOpposingPlayer(); }
+            
+            // --- Drawing ---
+            opposingPlayers.forEach(player => player.draw());
+            fieldGoalPosts.forEach(post => post.draw());
+
+            cosmo.update();
+            cosmo.draw();
+
+            if (checkCollision()) {
+                let lossMessage = 'KICK FAILED!';
+                if (checkCollisionWithPlayersOnly()) { lossMessage = 'BLOCKED!'; }
+                gameOver(lossMessage); // Only call gameOver on a collision loss
+                return;
+            }
+
+            updateScore();
+            drawScoreboard();
+
+            if (frameCount % 60 === 0) { gameTimeSeconds++; }
+
+            frameCount++;
+            gameLoop = requestAnimationFrame(gameTick);
+        }
+
+        function checkCollisionWithPlayersOnly() {
+            for (const player of opposingPlayers) {
+                const center = player.getCollisionCenter();
+                const dx = cosmo.x - center.x;
+                const dy = cosmo.y - center.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < cosmo.radius + player.collisionRadius) { return true; }
+            }
+            return false;
+        }
+
+        function startGame() {
+            if (isRunning) return;
+
+            isRunning = true;
+            score = 0;
+            gameTimeSeconds = 0; 
+            cosmo.y = canvas.height / 2;
+            cosmo.velocity = 0;
+            fieldGoalPosts = [];
+            opposingPlayers = []; 
+            fireworks = []; 
+            frameCount = 0;
+            cosmo.isCelebrating = false;
+            utahIsCelebrating = false; 
+            utahIsLosing = false; 
+            
+            UTAH_SCORE = 3; 
+            hasWon = false; 
+            ultimateWin = false; 
+            pipeGap = initialPipeGap; 
+            skyTransitionValue = 0;
+            canvas.style.backgroundColor = lerpColor(START_SKY_COLOR, END_SKY_COLOR, 0); // Reset sky color
+            
+            initializeFanData(); 
+
+            startButton.textContent = "Restart Game";
+
+            gameLoop = requestAnimationFrame(gameTick);
+        }
+
+        function gameOver(message = 'KICK FAILED!') {
+            cancelAnimationFrame(gameLoop);
+            isRunning = false;
+            
+            // Trigger Utah Celebration (since BYU lost)
+            utahIsCelebrating = true;
+            opposingPlayers.forEach(player => player.celebrate());
+
+            // Persistent redraw loop for celebration/losing animation
+            const finalAnimationLoop = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawSkyAndLights(); 
+                drawStandsAndFans();
+                drawFootballField();
+                
+                // Draw players and posts without updating position
+                opposingPlayers.forEach(player => player.draw());
+                fieldGoalPosts.forEach(post => post.draw());
+                
+                // Draw game over overlay
+                ctx.fillStyle = 'rgba(0, 45, 86, 0.8)'; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 48px Roboto';
+                ctx.textAlign = 'center';
+                ctx.fillText(message, canvas.width / 2, canvas.height / 2 - 40);
+
+                ctx.font = '24px Roboto';
+                ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 10);
+
+                ctx.font = '18px Roboto';
+                ctx.fillText('Click "Restart Game" to try again.', canvas.width / 2, canvas.height / 2 + 50);
+
+                startButton.textContent = `Review & Restart`;
+                
+                frameCount++;
+                if (!isRunning) { // Continue looping if game is over (loss)
+                    requestAnimationFrame(finalAnimationLoop);
+                }
+            };
+            
+            requestAnimationFrame(finalAnimationLoop);
+        }
+        
+        // --- Game Controls / Listeners ---
+        function handleJump(event) {
+            if (isRunning) {
+                if (event.type === 'click' && event.target.id === 'startButton') { return; }
+                if (event.type === 'keydown' && event.code !== 'Space') { return; }
+                cosmo.jump();
+            }
+        }
+
+        startButton.addEventListener('click', startGame);
+        canvas.addEventListener('click', handleJump);
+        document.addEventListener('keydown', handleJump);
+
+        /**
+         * Enhanced Start Screen with updated color scheme and header size.
+         */
+        function drawStartScreen() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.style.backgroundColor = lerpColor(START_SKY_COLOR, END_SKY_COLOR, 0);
+
+            // Draw lights/sky components to ensure they appear on the start screen
+            skyTransitionValue = 0; 
+            drawSkyAndLights(); 
+
+            // Overlay to slightly darken the crowd
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawFootballField();
+
+            // Background Overlay
+            ctx.fillStyle = 'rgba(0, 45, 86, 0.7)'; // Navy semi-transparent overlay
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Large Title 
+            ctx.fillStyle = BYU_NAVY; 
+            ctx.font = '60px Bebas Neue';
+            ctx.textAlign = 'center';
+            ctx.fillText('RIVALRY KICKOFF', canvas.width / 2, canvas.height / 2 - 80);
+
+            // Instructions/Tagline
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Roboto';
+            ctx.fillText('Take the field. Beat the Utes.', canvas.width / 2, canvas.height / 2 - 20);
+
+            // Cosmo Preview (Positioned lower)
+            cosmo.y = canvas.height / 2 + 50; 
+            cosmo.draw(); 
+            
+            // Call to action 
+            ctx.fillStyle = BYU_NAVY; 
+            ctx.font = '24px Roboto';
+            ctx.fillText('Click START or Tap to Play!', canvas.width / 2, canvas.height / 2 + 150);
+        }
+
+        drawStartScreen();
+
+    </script>
+
+</body>
+</html>
